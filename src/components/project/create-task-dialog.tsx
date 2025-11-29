@@ -30,7 +30,7 @@ export function CreateTaskDialog({ projectId, columnId, members, availableLabels
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState<Priority>("medium");
-    const [assigneeId, setAssigneeId] = useState<string>("");
+    const [assigneeId, setAssigneeId] = useState<string | undefined>(undefined);
     const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +58,7 @@ export function CreateTaskDialog({ projectId, columnId, members, availableLabels
                 setTitle("");
                 setDescription("");
                 setPriority("medium");
-                setAssigneeId("");
+                setAssigneeId(undefined);
                 setSelectedLabels([]);
                 router.refresh();
             } else {
@@ -136,12 +136,11 @@ export function CreateTaskDialog({ projectId, columnId, members, availableLabels
                         {/* Responsável */}
                         <div className="space-y-2">
                             <Label>Responsável</Label>
-                            <Select value={assigneeId} onValueChange={setAssigneeId}>
+                            <Select value={assigneeId} onValueChange={(value) => setAssigneeId(value || undefined)}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Selecione..." />
+                                    <SelectValue placeholder="Nenhum" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">Nenhum</SelectItem>
                                     {members.map((member) => (
                                         <SelectItem key={member.user.id} value={member.user.id}>
                                             {member.user.name}

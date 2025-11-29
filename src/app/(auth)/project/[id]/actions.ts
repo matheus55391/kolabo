@@ -274,6 +274,30 @@ export async function updateTaskAction(
             });
         }
 
+        if (updateData.description !== undefined && updateData.description !== currentTask.description) {
+            activities.push({
+                action: "updated",
+                field: "description",
+                oldValue: currentTask.description || "",
+                newValue: updateData.description || "",
+                description: `${session.user.name} ${updateData.description ? 'atualizou' : 'removeu'} a descrição`,
+                taskId,
+                userId: session.user.id,
+            });
+        }
+
+        if (updateData.labels && JSON.stringify(updateData.labels.sort()) !== JSON.stringify(currentTask.labels.sort())) {
+            activities.push({
+                action: "updated",
+                field: "labels",
+                oldValue: currentTask.labels.join(", "),
+                newValue: updateData.labels.join(", "),
+                description: `${session.user.name} atualizou as labels`,
+                taskId,
+                userId: session.user.id,
+            });
+        }
+
         if (activities.length > 0) {
             await prisma.activityLog.createMany({
                 data: activities,
