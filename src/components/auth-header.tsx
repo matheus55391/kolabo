@@ -32,7 +32,7 @@ export function AuthHeader({ user }: AuthHeaderProps) {
             try {
                 await logoutAction();
                 toast.success("Logout realizado com sucesso!");
-            } catch (error) {
+            } catch {
                 toast.error("Erro ao fazer logout");
             }
         });

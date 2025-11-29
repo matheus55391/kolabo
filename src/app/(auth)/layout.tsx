@@ -13,6 +13,7 @@ export default async function AuthLayout({
     });
 
     if (!session) {
+        console.log("No session found, redirecting to login");
         redirect("/login");
     }
 

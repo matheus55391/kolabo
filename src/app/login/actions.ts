@@ -2,7 +2,6 @@
 
 import { loginSchema, type LoginInput } from "@/schemas/auth-schema";
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 
 type ActionState = {
@@ -18,8 +17,6 @@ export async function loginAction(
     const values = {
         email: String(formData.get("email") || ""),
         password: String(formData.get("password") || ""),
-        // Workaround to prevent form state from disappearing after multiple submissions
-        __timestamp: String(Date.now()),
     };
 
     // Validação com Zod
@@ -37,6 +34,7 @@ export async function loginAction(
 
     try {
         // Autenticação usando Better Auth
+        // O Better Auth vai configurar os cookies automaticamente via middleware
         const result = await auth.api.signInEmail({
             body: { email, password },
             headers: await headers(),
@@ -47,28 +45,25 @@ export async function loginAction(
             return { values, errors, success: false };
         }
 
-        // Definir cookies de sessão manualmente
-        const cookieStore = await cookies();
-        if (result.token) {
-            cookieStore.set('better-auth.session_token', result.token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                path: '/',
-            });
-        }
+        console.log("Login bem-sucedido, sessão criada:", result.user?.email);
 
-        // Redirecionar após sucesso
-        redirect("/dashboard");
+        // Retornar sucesso para o client fazer redirect
+        return { values, errors: {}, success: true };
     } catch (error) {
         console.error("Login error:", error);
 
-        // Se for um redirect, propagar
-        if (error && typeof error === "object" && "digest" in error) {
-            throw error;
+        // Mensagens de erro específicas
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+        const errorStatus = error && typeof error === "object" && "status" in error ? String(error.status) : "";
+
+        if (errorMessage.toLowerCase().includes("user not found") || errorStatus === "UNAUTHORIZED") {
+            errors.root = { message: "Usuário não encontrado" };
+        } else if (errorMessage.toLowerCase().includes("invalid password") || errorMessage.toLowerCase().includes("invalid email or password")) {
+            errors.root = { message: "E-mail ou senha incorretos" };
+        } else {
+            errors.root = { message: "E-mail ou senha incorretos" };
         }
 
-        errors.root = { message: "Erro ao fazer login. Tente novamente." };
         return { values, errors, success: false };
     }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "@/components/login-form";
+import { loginAction } from "./actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -35,7 +36,7 @@ export default async function LoginPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <LoginForm values={initialValues} />
+                    <LoginForm values={initialValues} action={loginAction} />
 
                     <div className="mt-6 text-center text-sm">
                         <span className="text-muted-foreground">Não tem uma conta? </span>

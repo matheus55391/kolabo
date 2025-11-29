@@ -2,7 +2,6 @@
 
 import { registerSchema, type RegisterInput } from "@/schemas/auth-schema";
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 
 type ActionState = {
@@ -20,8 +19,6 @@ export async function registerAction(
         email: String(formData.get("email") || ""),
         password: String(formData.get("password") || ""),
         confirmPassword: String(formData.get("confirmPassword") || ""),
-        // Workaround to prevent form state from disappearing after multiple submissions
-        __timestamp: String(Date.now()),
     };
 
     // Validação com Zod
@@ -38,39 +35,40 @@ export async function registerAction(
     const { name, email, password } = values;
 
     try {
-        // Registro usando Better Auth
+        // Criar usuário usando Better Auth
+        // O Better Auth vai configurar os cookies automaticamente via middleware
         const result = await auth.api.signUpEmail({
             body: { name, email, password },
             headers: await headers(),
         });
 
         if (!result) {
-            errors.root = { message: "Erro ao criar conta. E-mail já pode estar em uso." };
+            errors.root = { message: "Erro ao criar conta" };
             return { values, errors, success: false };
         }
 
-        // Definir cookies de sessão manualmente
-        const cookieStore = await cookies();
-        if (result.token) {
-            cookieStore.set('better-auth.session_token', result.token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                path: '/',
-            });
-        }
+        console.log("Registro bem-sucedido, sessão criada:", result.user?.email);
 
-        // Redirecionar após sucesso
-        redirect("/dashboard");
+        // Retornar sucesso para o client fazer redirect
+        return { values, errors: {}, success: true };
     } catch (error) {
         console.error("Register error:", error);
 
-        // Se for um redirect, propagar
-        if (error && typeof error === "object" && "digest" in error) {
-            throw error;
+        // Mensagens de erro específicas
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+
+        if (errorMessage.toLowerCase().includes("already exists") ||
+            errorMessage.toLowerCase().includes("duplicate") ||
+            errorMessage.toLowerCase().includes("unique")) {
+            errors.root = { message: "E-mail já cadastrado" };
+        } else if (errorMessage.toLowerCase().includes("invalid email")) {
+            errors.root = { message: "E-mail inválido" };
+        } else if (errorMessage.toLowerCase().includes("password")) {
+            errors.root = { message: "Senha deve ter pelo menos 8 caracteres" };
+        } else {
+            errors.root = { message: "Erro ao criar conta. Tente novamente." };
         }
 
-        errors.root = { message: "Erro ao criar conta. Tente novamente." };
         return { values, errors, success: false };
     }
 }

@@ -2,54 +2,76 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Form from "next/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { loginSchema, type LoginInput } from "@/schemas/auth-schema";
-import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 
 const resolver = zodResolver(loginSchema);
 
-export function LoginForm({ values }: { values: LoginInput }) {
-    const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const router = useRouter();
+type ActionState = {
+    errors: Record<string, { message: string }>;
+    values: LoginInput;
+    success?: boolean;
+};
 
-    const { formState, register, handleSubmit } = useForm<LoginInput>({
-        resolver,
-        defaultValues: values,
-        mode: "onBlur",
+type LoginFormProps = {
+    values: LoginInput;
+    action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+};
+
+export function LoginForm({ values, action }: LoginFormProps) {
+    const [showPassword, setShowPassword] = useState(false);
+    const router = useRouter();
+    const [state, formAction, isPending] = useActionState(action, {
+        values,
+        errors: {},
     });
 
-    const onSubmit = async (data: LoginInput) => {
-        setIsLoading(true);
+    const { formState, register } = useForm<LoginInput>({
+        resolver,
+        errors: state.errors,
+        mode: "onBlur",
+        values: state.values,
+    });
 
-        await authClient.signIn.email({
-            email: data.email,
-            password: data.password,
-            callbackURL: "/dashboard",
-        }, {
-            onRequest: () => {
-                setIsLoading(true);
-            },
-            onSuccess: () => {
-                toast.success("Login realizado com sucesso!");
-                router.push("/dashboard");
-            },
-            onError: (ctx) => {
-                setIsLoading(false);
-                toast.error(ctx.error.message || "Erro ao fazer login");
-            },
-        });
-    };
+    useEffect(() => {
+        if (state.success) {
+            toast.success("Bem-vindo de volta!", {
+                description: "Login realizado com sucesso",
+                duration: 3000,
+            });
+            router.push("/dashboard");
+        } else if (state.errors.root) {
+            // Mensagens de erro mais específicas e amigáveis
+            let errorMessage = "Erro ao fazer login";
+            let errorDescription = "Tente novamente mais tarde";
+
+            const errorMsg = state.errors.root.message.toLowerCase();
+
+            if (errorMsg.includes("user not found") || errorMsg.includes("not found") || errorMsg.includes("não encontrado")) {
+                errorMessage = "Usuário não encontrado";
+                errorDescription = "Verifique seu e-mail ou cadastre-se";
+            } else if (errorMsg.includes("password") || errorMsg.includes("senha") || errorMsg.includes("incorret")) {
+                errorMessage = "E-mail ou senha incorretos";
+                errorDescription = "Verifique suas credenciais";
+            }
+
+            toast.error(errorMessage, {
+                description: errorDescription,
+                duration: 5000,
+            });
+        }
+    }, [state.success, state.errors.root, router]);
 
     return (
         <div className="space-y-4">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <Form action={formAction} className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="email">E-mail</Label>
                     <Input
@@ -57,7 +79,7 @@ export function LoginForm({ values }: { values: LoginInput }) {
                         id="email"
                         type="email"
                         placeholder="seu@email.com"
-                        disabled={isLoading}
+                        disabled={isPending}
                     />
                     {formState.errors.email && (
                         <p className="text-sm text-destructive" role="alert">
@@ -74,7 +96,7 @@ export function LoginForm({ values }: { values: LoginInput }) {
                             id="password"
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            disabled={isLoading}
+                            disabled={isPending}
                             className="pr-10"
                         />
                         <Button
@@ -83,7 +105,7 @@ export function LoginForm({ values }: { values: LoginInput }) {
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowPassword(!showPassword)}
-                            disabled={isLoading}
+                            disabled={isPending}
                         >
                             {showPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -102,8 +124,8 @@ export function LoginForm({ values }: { values: LoginInput }) {
                     )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
+                <Button type="submit" className="w-full" disabled={isPending}>
+                    {isPending ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Entrando...
@@ -112,7 +134,7 @@ export function LoginForm({ values }: { values: LoginInput }) {
                         "Entrar"
                     )}
                 </Button>
-            </form>
+            </Form>
         </div>
     );
 }

@@ -2,56 +2,83 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Form from "next/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { registerSchema, type RegisterInput } from "@/schemas/auth-schema";
-import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 
 const resolver = zodResolver(registerSchema);
 
-export function RegisterForm({ values }: { values: RegisterInput }) {
+type ActionState = {
+    errors: Record<string, { message: string }>;
+    values: RegisterInput;
+    success?: boolean;
+};
+
+type RegisterFormProps = {
+    values: RegisterInput;
+    action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+};
+
+export function RegisterForm({ values, action }: RegisterFormProps) {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
-
-    const { formState, register, handleSubmit } = useForm<RegisterInput>({
-        resolver,
-        defaultValues: values,
-        mode: "onSubmit",
+    const [state, formAction, isPending] = useActionState(action, {
+        values,
+        errors: {},
     });
 
-    const onSubmit = async (data: RegisterInput) => {
-        setIsLoading(true);
+    const { formState, register } = useForm<RegisterInput>({
+        resolver,
+        errors: state.errors,
+        mode: "onSubmit",
+        values: state.values,
+    });
 
-        await authClient.signUp.email({
-            name: data.name,
-            email: data.email,
-            password: data.password,
-            callbackURL: "/dashboard",
-        }, {
-            onRequest: () => {
-                setIsLoading(true);
-            },
-            onSuccess: () => {
-                toast.success("Conta criada com sucesso!");
-                router.push("/dashboard");
-            },
-            onError: (ctx) => {
-                setIsLoading(false);
-                toast.error(ctx.error.message || "Erro ao criar conta");
-            },
-        });
-    };
+    useEffect(() => {
+        if (state.success) {
+            toast.success("Bem-vindo ao Kolabo! 🎉", {
+                description: "Sua conta foi criada com sucesso",
+                duration: 3000,
+            });
+            router.push("/dashboard");
+        } else if (state.errors.root) {
+            // Mensagens de erro mais específicas e amigáveis
+            let errorMessage = "Erro ao criar conta";
+            let errorDescription = "Tente novamente mais tarde";
+
+            const errorMsg = state.errors.root.message.toLowerCase();
+
+            if (errorMsg.includes("already exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique") || errorMsg.includes("já")) {
+                errorMessage = "E-mail já cadastrado";
+                errorDescription = "Este e-mail já está sendo usado. Faça login ou use outro e-mail";
+            } else if (errorMsg.includes("invalid email")) {
+                errorMessage = "E-mail inválido";
+                errorDescription = "Verifique o formato do seu e-mail";
+            } else if (errorMsg.includes("password") || errorMsg.includes("senha")) {
+                errorMessage = "Senha inválida";
+                errorDescription = "A senha deve ter pelo menos 8 caracteres";
+            } else if (errorMsg.includes("failed to create")) {
+                errorMessage = "Erro ao criar usuário";
+                errorDescription = "Verifique os dados e tente novamente";
+            }
+
+            toast.error(errorMessage, {
+                description: errorDescription,
+                duration: 5000,
+            });
+        }
+    }, [state.success, state.errors.root, router]);
 
     return (
         <div className="space-y-4">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <Form action={formAction} className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="name">Nome completo</Label>
                     <Input
@@ -59,7 +86,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                         id="name"
                         type="text"
                         placeholder="Seu nome"
-                        disabled={isLoading}
+                        disabled={isPending}
                     />
                     {formState.errors.name && (
                         <p className="text-sm text-destructive" role="alert">
@@ -75,7 +102,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                         id="email"
                         type="email"
                         placeholder="seu@email.com"
-                        disabled={isLoading}
+                        disabled={isPending}
                     />
                     {formState.errors.email && (
                         <p className="text-sm text-destructive" role="alert">
@@ -92,7 +119,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                             id="password"
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            disabled={isLoading}
+                            disabled={isPending}
                             className="pr-10"
                         />
                         <Button
@@ -101,7 +128,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowPassword(!showPassword)}
-                            disabled={isLoading}
+                            disabled={isPending}
                         >
                             {showPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -131,7 +158,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                             id="confirmPassword"
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            disabled={isLoading}
+                            disabled={isPending}
                             className="pr-10"
                         />
                         <Button
@@ -140,7 +167,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            disabled={isLoading}
+                            disabled={isPending}
                         >
                             {showConfirmPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -159,8 +186,8 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                     )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
+                <Button type="submit" className="w-full" disabled={isPending}>
+                    {isPending ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Criando conta...
@@ -169,7 +196,7 @@ export function RegisterForm({ values }: { values: RegisterInput }) {
                         "Criar conta"
                     )}
                 </Button>
-            </form>
+            </Form>
         </div>
     );
 }
