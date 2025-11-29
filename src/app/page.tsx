@@ -8,7 +8,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+        <div className="container mx-auto max-w-7xl flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-xl">K</span>
@@ -27,7 +27,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section className="container py-24 md:py-32">
+      <section className="container mx-auto max-w-7xl py-24 md:py-32 px-6">
         <div className="flex flex-col items-center text-center gap-8 max-w-3xl mx-auto">
           <div className="inline-flex items-center rounded-full border px-4 py-1.5 text-sm">
             <Zap className="mr-2 h-4 w-4" />
@@ -60,7 +60,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="container py-16 md:py-24">
+      <section className="container mx-auto max-w-7xl py-16 md:py-24 px-6">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Tudo que você precisa para organizar projetos
@@ -104,7 +104,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="container py-16 md:py-24">
+      <section className="container mx-auto max-w-7xl py-16 md:py-24 px-6">
         <Card className="bg-primary text-primary-foreground">
           <CardContent className="py-12 text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -124,7 +124,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t py-8 mt-16">
-        <div className="container text-center text-sm text-muted-foreground">
+        <div className="container mx-auto max-w-7xl text-center text-sm text-muted-foreground px-6">
           <p>&copy; 2025 Kolabo. Todos os direitos reservados.</p>
         </div>
       </footer>
