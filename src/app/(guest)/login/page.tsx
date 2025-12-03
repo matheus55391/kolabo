@@ -1,28 +1,10 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "@/components/auth/login-form";
-import { loginAction } from "./actions";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
-export default async function LoginPage() {
-    // Redirecionar se já estiver logado
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
-
-    if (session) {
-        redirect("/dashboard");
-    }
-
-    const initialValues = {
-        email: "",
-        password: "",
-    };
-
+export default function LoginPage() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-background to-secondary/20 p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="space-y-1 text-center">
                     <div className="flex justify-center mb-4">
@@ -36,7 +18,7 @@ export default async function LoginPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <LoginForm values={initialValues} action={loginAction} />
+                    <LoginForm />
 
                     <div className="mt-6 text-center text-sm">
                         <span className="text-muted-foreground">Não tem uma conta? </span>

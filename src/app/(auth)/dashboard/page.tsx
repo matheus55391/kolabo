@@ -1,11 +1,11 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FolderKanban, Plus } from "lucide-react";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import Link from "next/link";
+import { getUserProjects } from "@/repositories/project.repository";
 
 export default async function DashboardPage() {
     const session = await auth.api.getSession({
@@ -17,32 +17,7 @@ export default async function DashboardPage() {
     }
 
     // Buscar projetos do usuário
-    const projects = await prisma.project.findMany({
-        where: {
-            members: {
-                some: {
-                    userId: session.user.id,
-                },
-            },
-        },
-        include: {
-            owner: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                },
-            },
-            _count: {
-                select: {
-                    members: true,
-                },
-            },
-        },
-        orderBy: {
-            updatedAt: "desc",
-        },
-    });
+    const projects = await getUserProjects(session.user.id, 50);
 
     const firstName = session.user.name?.split(" ")[0] || "Usuário";
 

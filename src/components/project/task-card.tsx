@@ -52,7 +52,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
                         </div>
 
                         {/* Comentários */}
-                        {task._count.comments > 0 && (
+                        {task._count?.comments && task._count.comments > 0 && (
                             <div className="flex items-center gap-1 text-muted-foreground">
                                 <MessageSquare className="h-3 w-3" />
                                 <span className="text-xs">{task._count.comments}</span>

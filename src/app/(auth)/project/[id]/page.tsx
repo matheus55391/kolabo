@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
 import { ProjectBoard } from "@/components/project/project-board";
+import { getProjectById, getUserProjectRole } from "@/repositories/project.repository";
 
 interface ProjectPageProps {
     params: Promise<{
@@ -21,67 +21,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         redirect("/login");
     }
 
-    // Buscar projeto com todas as informações necessárias
-    const project = await prisma.project.findUnique({
-        where: { id },
-        include: {
-            owner: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                },
-            },
-            members: {
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            name: true,
-                            email: true,
-                            image: true,
-                        },
-                    },
-                },
-            },
-            columns: {
-                orderBy: {
-                    order: "asc",
-                },
-                include: {
-                    tasks: {
-                        orderBy: {
-                            order: "asc",
-                        },
-                        include: {
-                            creator: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    email: true,
-                                    image: true,
-                                },
-                            },
-                            assignee: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    email: true,
-                                    image: true,
-                                },
-                            },
-                            _count: {
-                                select: {
-                                    comments: true,
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    });
+    // Buscar projeto
+    const project = await getProjectById(id);
 
     if (!project) {
         notFound();
@@ -94,15 +35,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         redirect("/dashboard");
     }
 
-    // Encontrar o papel do usuário atual
-    const currentUserMembership = project.members.find((member) => member.userId === session.user.id);
+    // Obter papel do usuário
+    const userRole = await getUserProjectRole(id, session.user.id);
 
     return (
         <div className="h-screen flex flex-col">
             <ProjectBoard
                 project={project}
                 currentUserId={session.user.id}
-                userRole={currentUserMembership?.role || "member"}
+                userRole={userRole}
             />
         </div>
     );

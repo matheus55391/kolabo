@@ -11,9 +11,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User } from "lucide-react";
-import { logoutAction } from "@/app/(auth)/actions";
-import { useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 type UserMenuProps = {
     user: {
@@ -25,16 +26,24 @@ type UserMenuProps = {
 };
 
 export function UserMenu({ user }: UserMenuProps) {
-    const [isPending, startTransition] = useTransition();
+    const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
 
-    const handleLogout = () => {
-        startTransition(async () => {
-            try {
-                await logoutAction();
-                toast.success("Logout realizado com sucesso!");
-            } catch {
-                toast.error("Erro ao fazer logout");
-            }
+    const handleLogout = async () => {
+        await authClient.signOut({
+            fetchOptions: {
+                onRequest: () => {
+                    setIsLoading(true);
+                },
+                onSuccess: () => {
+                    toast.success("Logout realizado com sucesso!");
+                    router.push("/login");
+                },
+                onError: () => {
+                    setIsLoading(false);
+                    toast.error("Erro ao fazer logout");
+                },
+            },
         });
     };
 
@@ -50,7 +59,7 @@ export function UserMenu({ user }: UserMenuProps) {
                 <Button
                     variant="ghost"
                     className="relative h-9 w-9 rounded-full"
-                    disabled={isPending}
+                    disabled={isLoading}
                 >
                     <Avatar className="h-9 w-9">
                         <AvatarImage src={user.image || ""} alt={user.name} />
@@ -75,7 +84,7 @@ export function UserMenu({ user }: UserMenuProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     onClick={handleLogout}
-                    disabled={isPending}
+                    disabled={isLoading}
                     className="text-red-600"
                 >
                     <LogOut className="mr-2 h-4 w-4" />

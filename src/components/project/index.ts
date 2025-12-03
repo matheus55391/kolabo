@@ -3,3 +3,8 @@ export { TaskCard } from "./task-card";
 export { CreateTaskDialog } from "./create-task-dialog";
 export { TaskDetailDialog } from "./task-detail-dialog";
 export { EditTaskDialog } from "./edit-task-dialog";
+export { KanbanColumn } from "./kanban-column";
+export { SortableTaskCard } from "./sortable-task-card";
+export { BoardHeader } from "./board-header";
+export { CreateColumnDialog } from "./create-column-dialog";
+export { EditColumnDialog } from "./edit-column-dialog";

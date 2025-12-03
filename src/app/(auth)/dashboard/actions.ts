@@ -1,11 +1,11 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createProjectSchema } from "@/schemas/project-schema";
 import type { ActionResponse } from "@/@types/actions";
+import { createProject } from "@/repositories/project.repository";
 
 export async function createProjectAction(formData: FormData): Promise<ActionResponse> {
     try {
@@ -20,33 +20,18 @@ export async function createProjectAction(formData: FormData): Promise<ActionRes
 
         // Validar dados
         const name = String(formData.get("name") || "");
+        const description = String(formData.get("description") || "") || null;
         const result = createProjectSchema.safeParse({ name });
 
         if (!result.success) {
             return { success: false, error: result.error.issues[0].message };
         }
 
-        // Criar projeto com colunas padrão do Kanban
-        const project = await prisma.project.create({
-            data: {
-                name: result.data.name,
-                ownerId: session.user.id,
-                members: {
-                    create: {
-                        userId: session.user.id,
-                        role: "owner",
-                    },
-                },
-                columns: {
-                    createMany: {
-                        data: [
-                            { name: "Pendente", order: 0 },
-                            { name: "Andamento", order: 1 },
-                            { name: "Concluído", order: 2 },
-                        ],
-                    },
-                },
-            },
+        // Criar projeto
+        const project = await createProject({
+            name: result.data.name,
+            description,
+            ownerId: session.user.id,
         });
 
         console.log("Projeto criado com sucesso:", project.id);

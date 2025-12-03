@@ -18,7 +18,7 @@ import {
     Send,
 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteTaskAction, addCommentAction, updateTaskAction } from "@/app/(auth)/project/[id]/actions";
+import { deleteTaskAction, addCommentAction, updateTaskAction, getTaskDetailsAction } from "@/app/(auth)/project/[id]/actions";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -46,9 +46,9 @@ const priorityConfig = {
 };
 
 async function fetchTaskDetails(taskId: string) {
-    const res = await fetch(`/api/tasks/${taskId}`);
-    if (!res.ok) throw new Error("Erro ao buscar detalhes da tarefa");
-    return res.json();
+    const result = await getTaskDetailsAction(taskId);
+    if (!result.success) throw new Error(result.error);
+    return result.data;
 }
 
 export function TaskDetailDialog({

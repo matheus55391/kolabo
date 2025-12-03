@@ -21,3 +21,11 @@ export const updateTaskSchema = z.object({
     columnId: z.string().optional(),
     assigneeId: z.string().nullable().optional(),
 });
+
+export const createColumnSchema = z.object({
+    name: z.string().min(1, "Nome é obrigatório").max(50, "Nome muito longo"),
+});
+
+export const updateColumnSchema = z.object({
+    name: z.string().min(1, "Nome é obrigatório").max(50, "Nome muito longo"),
+});

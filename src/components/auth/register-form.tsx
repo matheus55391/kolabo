@@ -2,83 +2,83 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useActionState, useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Form from "next/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { registerSchema, type RegisterInput } from "@/schemas/auth-schema";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 const resolver = zodResolver(registerSchema);
 
-type ActionState = {
-    errors: Record<string, { message: string }>;
-    values: RegisterInput;
-    success?: boolean;
-};
-
-type RegisterFormProps = {
-    values: RegisterInput;
-    action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
-};
-
-export function RegisterForm({ values, action }: RegisterFormProps) {
+export function RegisterForm() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
-    const [state, formAction, isPending] = useActionState(action, {
-        values,
-        errors: {},
-    });
 
-    const { formState, register } = useForm<RegisterInput>({
+    const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
         resolver,
-        errors: state.errors,
-        mode: "onSubmit",
-        values: state.values,
+        defaultValues: {
+            name: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+        },
     });
 
-    useEffect(() => {
-        if (state.success) {
-            toast.success("Bem-vindo ao Kolabo! 🎉", {
-                description: "Sua conta foi criada com sucesso",
-                duration: 3000,
-            });
-            router.push("/dashboard");
-        } else if (state.errors.root) {
-            // Mensagens de erro mais específicas e amigáveis
-            let errorMessage = "Erro ao criar conta";
-            let errorDescription = "Tente novamente mais tarde";
+    const onSubmit = async (data: RegisterInput) => {
+        await authClient.signUp.email(
+            {
+                email: data.email,
+                password: data.password,
+                name: data.name,
+                callbackURL: "/dashboard",
+            },
+            {
+                onRequest: () => {
+                    setIsLoading(true);
+                },
+                onSuccess: () => {
+                    toast.success("Bem-vindo ao Kolabo! 🎉", {
+                        description: "Sua conta foi criada com sucesso",
+                        duration: 3000,
+                    });
+                    router.push("/dashboard");
+                },
+                onError: (ctx) => {
+                    setIsLoading(false);
+                    const errorMsg = ctx.error.message?.toLowerCase() || "";
 
-            const errorMsg = state.errors.root.message.toLowerCase();
+                    let errorMessage = "Erro ao criar conta";
+                    let errorDescription = "Tente novamente mais tarde";
 
-            if (errorMsg.includes("already exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique") || errorMsg.includes("já")) {
-                errorMessage = "E-mail já cadastrado";
-                errorDescription = "Este e-mail já está sendo usado. Faça login ou use outro e-mail";
-            } else if (errorMsg.includes("invalid email")) {
-                errorMessage = "E-mail inválido";
-                errorDescription = "Verifique o formato do seu e-mail";
-            } else if (errorMsg.includes("password") || errorMsg.includes("senha")) {
-                errorMessage = "Senha inválida";
-                errorDescription = "A senha deve ter pelo menos 8 caracteres";
-            } else if (errorMsg.includes("failed to create")) {
-                errorMessage = "Erro ao criar usuário";
-                errorDescription = "Verifique os dados e tente novamente";
+                    if (errorMsg.includes("already exists") || errorMsg.includes("duplicate") || errorMsg.includes("unique")) {
+                        errorMessage = "E-mail já cadastrado";
+                        errorDescription = "Este e-mail já está sendo usado. Faça login ou use outro e-mail";
+                    } else if (errorMsg.includes("invalid email")) {
+                        errorMessage = "E-mail inválido";
+                        errorDescription = "Verifique o formato do seu e-mail";
+                    } else if (errorMsg.includes("password")) {
+                        errorMessage = "Senha inválida";
+                        errorDescription = "A senha deve ter pelo menos 8 caracteres";
+                    }
+
+                    toast.error(errorMessage, {
+                        description: errorDescription,
+                        duration: 5000,
+                    });
+                },
             }
-
-            toast.error(errorMessage, {
-                description: errorDescription,
-                duration: 5000,
-            });
-        }
-    }, [state.success, state.errors.root, router]);
+        );
+    };
 
     return (
         <div className="space-y-4">
-            <Form action={formAction} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="name">Nome completo</Label>
                     <Input
@@ -86,11 +86,11 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                         id="name"
                         type="text"
                         placeholder="Seu nome"
-                        disabled={isPending}
+                        disabled={isLoading}
                     />
-                    {formState.errors.name && (
+                    {errors.name && (
                         <p className="text-sm text-destructive" role="alert">
-                            {formState.errors.name.message}
+                            {errors.name.message}
                         </p>
                     )}
                 </div>
@@ -102,11 +102,11 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                         id="email"
                         type="email"
                         placeholder="seu@email.com"
-                        disabled={isPending}
+                        disabled={isLoading}
                     />
-                    {formState.errors.email && (
+                    {errors.email && (
                         <p className="text-sm text-destructive" role="alert">
-                            {formState.errors.email.message}
+                            {errors.email.message}
                         </p>
                     )}
                 </div>
@@ -119,7 +119,7 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                             id="password"
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            disabled={isPending}
+                            disabled={isLoading}
                             className="pr-10"
                         />
                         <Button
@@ -128,7 +128,7 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowPassword(!showPassword)}
-                            disabled={isPending}
+                            disabled={isLoading}
                         >
                             {showPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -143,9 +143,9 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                     <p className="text-xs text-muted-foreground">
                         Mínimo de 8 caracteres
                     </p>
-                    {formState.errors.password && (
+                    {errors.password && (
                         <p className="text-sm text-destructive" role="alert">
-                            {formState.errors.password.message}
+                            {errors.password.message}
                         </p>
                     )}
                 </div>
@@ -158,7 +158,7 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                             id="confirmPassword"
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="••••••••"
-                            disabled={isPending}
+                            disabled={isLoading}
                             className="pr-10"
                         />
                         <Button
@@ -167,7 +167,7 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                             size="sm"
                             className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            disabled={isPending}
+                            disabled={isLoading}
                         >
                             {showConfirmPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -179,15 +179,15 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                             </span>
                         </Button>
                     </div>
-                    {formState.errors.confirmPassword && (
+                    {errors.confirmPassword && (
                         <p className="text-sm text-destructive" role="alert">
-                            {formState.errors.confirmPassword.message}
+                            {errors.confirmPassword.message}
                         </p>
                     )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isPending}>
-                    {isPending ? (
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Criando conta...
@@ -196,7 +196,7 @@ export function RegisterForm({ values, action }: RegisterFormProps) {
                         "Criar conta"
                     )}
                 </Button>
-            </Form>
+            </form>
         </div>
     );
 }

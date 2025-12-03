@@ -1,30 +1,10 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "@/components/auth/register-form";
-import { registerAction } from "./actions";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
-export default async function RegisterPage() {
-    // Redirecionar se já estiver logado
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
-
-    if (session) {
-        redirect("/dashboard");
-    }
-
-    const initialValues = {
-        name: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-    };
-
+export default function RegisterPage() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-background to-secondary/20 p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="space-y-1 text-center">
                     <div className="flex justify-center mb-4">
@@ -38,7 +18,7 @@ export default async function RegisterPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <RegisterForm values={initialValues} action={registerAction} />
+                    <RegisterForm />
 
                     <div className="mt-6 text-center text-sm">
                         <span className="text-muted-foreground">Já tem uma conta? </span>

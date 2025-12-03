@@ -4,9 +4,11 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { createTaskSchema, updateTaskSchema } from "@/schemas/project-schema";
+import { createTaskSchema, updateTaskSchema, createColumnSchema, updateColumnSchema } from "@/schemas/project-schema";
 import { z } from "zod";
 import type { ActionResponse } from "@/@types/actions";
+import { isUserProjectMember } from "@/repositories/project.repository";
+import { createTask, addActivity, getTaskWithDetails } from "@/repositories/task.repository";
 
 export async function createTaskAction(
     projectId: string,
@@ -34,16 +36,9 @@ export async function createTaskAction(
         }
 
         // Verificar se o usuário é membro do projeto
-        const membership = await prisma.projectMember.findUnique({
-            where: {
-                projectId_userId: {
-                    projectId,
-                    userId: session.user.id,
-                },
-            },
-        });
+        const isMember = await isUserProjectMember(projectId, session.user.id);
 
-        if (!membership) {
+        if (!isMember) {
             return { success: false, error: "Você não tem permissão para criar tarefas neste projeto" };
         }
 
@@ -65,56 +60,27 @@ export async function createTaskAction(
             return { success: false, error: "Coluna não encontrada" };
         }
 
-        // Obter próxima ordem na coluna
-        const lastTask = await prisma.task.findFirst({
-            where: { columnId: result.data.columnId },
-            orderBy: { order: "desc" },
-        });
-
-        const order = lastTask ? lastTask.order + 1 : 0;
-
         // Criar tarefa
-        const task = await prisma.task.create({
-            data: {
-                title: result.data.title,
-                description: result.data.description,
-                priority: result.data.priority,
-                labels: result.data.labels,
-                order,
-                projectId,
-                columnId: result.data.columnId,
-                creatorId: session.user.id,
-                assigneeId: result.data.assigneeId,
-            },
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        image: true,
-                    },
-                },
-                assignee: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        image: true,
-                    },
-                },
-                column: true,
-            },
+        const task = await createTask({
+            title: result.data.title,
+            description: result.data.description ?? null,
+            priority: result.data.priority,
+            labels: result.data.labels,
+            columnId: result.data.columnId,
+            creatorId: session.user.id,
+            assigneeId: result.data.assigneeId ?? null,
+            projectId,
         });
 
         // Registrar atividade
-        await prisma.activityLog.create({
-            data: {
-                action: "created",
-                description: `${session.user.name} criou a tarefa "${task.title}"`,
-                taskId: task.id,
-                userId: session.user.id,
-            },
+        await addActivity({
+            action: "created",
+            field: null,
+            oldValue: null,
+            newValue: null,
+            description: `${session.user.name} criou a tarefa "${task.title}"`,
+            taskId: task.id,
+            userId: session.user.id,
         });
 
         revalidatePath(`/project/${projectId}`);
@@ -496,5 +462,292 @@ export async function addLabelToProjectAction(
     } catch (error) {
         console.error("Erro ao adicionar label:", error);
         return { success: false, error: "Erro ao adicionar label" };
+    }
+}
+
+export async function getTaskDetailsAction(taskId: string) {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        const task = await getTaskWithDetails(taskId);
+
+        if (!task) {
+            return { success: false, error: "Tarefa não encontrada" };
+        }
+
+        // Verificar se o usuário tem acesso ao projeto
+        const isMember = await isUserProjectMember(task.column.projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para visualizar esta tarefa" };
+        }
+
+        return { success: true, data: task };
+    } catch (error) {
+        console.error("Erro ao buscar detalhes da tarefa:", error);
+        return { success: false, error: "Erro ao buscar detalhes da tarefa" };
+    }
+}
+
+export async function reorderColumnsAction(
+    projectId: string,
+    columns: { id: string; order: number }[]
+): Promise<ActionResponse> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        // Verificar se o usuário é membro do projeto
+        const isMember = await isUserProjectMember(projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para reordenar colunas" };
+        }
+
+        // Atualizar ordem de todas as colunas em uma transação
+        await prisma.$transaction(
+            columns.map((col) =>
+                prisma.column.update({
+                    where: { id: col.id },
+                    data: { order: col.order },
+                })
+            )
+        );
+
+        revalidatePath(`/project/${projectId}`);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao reordenar colunas:", error);
+        return { success: false, error: "Erro ao reordenar colunas" };
+    }
+}
+
+export async function reorderTasksAction(
+    projectId: string,
+    tasks: { id: string; order: number; columnId: string }[]
+): Promise<ActionResponse> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        // Verificar se o usuário é membro do projeto
+        const isMember = await isUserProjectMember(projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para reordenar tarefas" };
+        }
+
+        // Atualizar ordem e coluna de todas as tarefas em uma transação
+        await prisma.$transaction(
+            tasks.map((task) =>
+                prisma.task.update({
+                    where: { id: task.id },
+                    data: {
+                        order: task.order,
+                        columnId: task.columnId,
+                    },
+                })
+            )
+        );
+
+        revalidatePath(`/project/${projectId}`);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao reordenar tarefas:", error);
+        return { success: false, error: "Erro ao reordenar tarefas" };
+    }
+}
+
+export async function createColumnAction(
+    projectId: string,
+    data: z.infer<typeof createColumnSchema>
+): Promise<ActionResponse<{ id: string; name: string; order: number }>> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        // Verificar se o usuário é membro do projeto
+        const isMember = await isUserProjectMember(projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para criar colunas" };
+        }
+
+        // Validar dados
+        const result = createColumnSchema.safeParse(data);
+        if (!result.success) {
+            return { success: false, error: result.error.issues[0].message };
+        }
+
+        // Verificar se já existe coluna com mesmo nome
+        const existingColumn = await prisma.column.findFirst({
+            where: {
+                projectId,
+                name: result.data.name,
+            },
+        });
+
+        if (existingColumn) {
+            return { success: false, error: "Já existe uma coluna com este nome" };
+        }
+
+        // Obter a última ordem
+        const lastColumn = await prisma.column.findFirst({
+            where: { projectId },
+            orderBy: { order: "desc" },
+        });
+
+        // Criar coluna
+        const column = await prisma.column.create({
+            data: {
+                name: result.data.name,
+                order: lastColumn ? lastColumn.order + 1 : 0,
+                projectId,
+            },
+        });
+
+        revalidatePath(`/project/${projectId}`, "page");
+
+        return { success: true, data: column };
+    } catch (error) {
+        console.error("Erro ao criar coluna:", error);
+        return { success: false, error: "Erro ao criar coluna" };
+    }
+}
+
+export async function updateColumnAction(
+    columnId: string,
+    data: z.infer<typeof updateColumnSchema>
+): Promise<ActionResponse> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        // Buscar coluna
+        const column = await prisma.column.findUnique({
+            where: { id: columnId },
+            include: { project: true },
+        });
+
+        if (!column) {
+            return { success: false, error: "Coluna não encontrada" };
+        }
+
+        // Verificar se o usuário é membro do projeto
+        const isMember = await isUserProjectMember(column.projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para editar colunas" };
+        }
+
+        // Validar dados
+        const result = updateColumnSchema.safeParse(data);
+        if (!result.success) {
+            return { success: false, error: result.error.issues[0].message };
+        }
+
+        // Verificar se já existe outra coluna com mesmo nome
+        const existingColumn = await prisma.column.findFirst({
+            where: {
+                projectId: column.projectId,
+                name: result.data.name,
+                id: { not: columnId },
+            },
+        });
+
+        if (existingColumn) {
+            return { success: false, error: "Já existe uma coluna com este nome" };
+        }
+
+        // Atualizar coluna
+        await prisma.column.update({
+            where: { id: columnId },
+            data: { name: result.data.name },
+        });
+
+        revalidatePath(`/project/${column.projectId}`, "page");
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao atualizar coluna:", error);
+        return { success: false, error: "Erro ao atualizar coluna" };
+    }
+}
+
+export async function deleteColumnAction(columnId: string): Promise<ActionResponse> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user) {
+            return { success: false, error: "Não autenticado" };
+        }
+
+        // Buscar coluna
+        const column = await prisma.column.findUnique({
+            where: { id: columnId },
+            include: {
+                _count: {
+                    select: { tasks: true },
+                },
+            },
+        });
+
+        if (!column) {
+            return { success: false, error: "Coluna não encontrada" };
+        }
+
+        // Verificar se a coluna tem tarefas
+        if (column._count.tasks > 0) {
+            return { success: false, error: "Não é possível excluir uma coluna com tarefas" };
+        }
+
+        // Verificar se o usuário é membro do projeto
+        const isMember = await isUserProjectMember(column.projectId, session.user.id);
+
+        if (!isMember) {
+            return { success: false, error: "Você não tem permissão para excluir colunas" };
+        }
+
+        // Excluir coluna
+        await prisma.column.delete({
+            where: { id: columnId },
+        });
+
+        revalidatePath(`/project/${column.projectId}`, "page");
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao excluir coluna:", error);
+        return { success: false, error: "Erro ao excluir coluna" };
     }
 }
